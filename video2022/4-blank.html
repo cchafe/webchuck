@@ -36,10 +36,10 @@ live code
     var take = 1;
     var preloaded = false;
     var serverFilesToPreload = [
-        {
-            serverFilename: 'https://ccrma.stanford.edu/courses/220a/examples/webchuck/radio-play/wav/whale.wav',
-            virtualFilename: 'whale.wav'
-        }
+//        {
+//            serverFilename: 'https://ccrma.stanford.edu/courses/220a/examples/webchuck/radio-play/wav/whale.wav',
+//            virtualFilename: 'whale.wav'
+//        }
     ];
     var adc = null;
     const constraints = {'video': false, 'audio': {
@@ -99,7 +99,6 @@ startButton.addEventListener( "click", async function() {
   await theChuck.runCode(prependCode+editor1.getValue());
   stopButton.disabled = false;
   startButton.value = "Replace";
-//  startButton.disabled = true;
   startButtonWithInput.disabled = true;
   startButton.style.background='White';  
   recordButton.value = "Start Recording";
@@ -112,7 +111,6 @@ startButtonWithInput.addEventListener( "click", async function() {
   await theChuck.runCode(prependCode+editor1.getValue());
   stopButton.disabled = false;
   startButtonWithInput.value = "Replace";
-//  startButtonWithInput.disabled = true;
   startButton.disabled = true;
   startButtonWithInput.style.background='White';  
   recordButton.value = "Start Recording";
@@ -124,13 +122,10 @@ stopButton.addEventListener( "click", async function() {
   await theChuck.removeLastCode();
   disconnectAudioInput();
   stereoRecorder.stop();
-//  audioContext.suspend(); ??
   if (recordButton.value == "Recording") {
     createDownloadLink(take);
     take++;
   }
-//  recordButton.style.background='White';  
-//  recordButton.disabled = true;
 });
 
 recordButton.addEventListener( "click", async function() {
