@@ -1,0 +1,216 @@
+<!-- 
+    based off of tutorials by Mike Mulshine et al
+    dependencies are in https://ccrma.stanford.edu/~cc/220a/webchuck220aFinal/
+-->
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<!--- make responsive for mobile devices -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"> 
+<!--- Include the ACE editor and webchuck stuff -->
+  <link rel="stylesheet" href="https://ccrma.stanford.edu/~cc/220a/webchuck220aFinal/css/editor.css">
+  <script type="text/javascript" src="https://ccrma.stanford.edu/~cc/220a/webchuck220aFinal/js/ace.js" charset="utf-8"></script>
+  <script type="text/javascript" src="https://ccrma.stanford.edu/~cc/220a/webchuck220aFinal/js/editor.js"></script>
+  <script type="text/javascript" src="https://ccrma.stanford.edu/~cc/220a/webchuck220aFinal/js/defer.js"></script>
+  <script type="text/javascript" src="https://ccrma.stanford.edu/~cc/220a/webchuck220aFinal/js/webchuck_host_recorder.js"></script>
+
+</head>
+<h2>Webchuck Demo</h2>
+<p>
+Steve Reich's Clapping Music copied from <a href="https://chuck.stanford.edu/doc/examples/">Chuck examples</a> whee it has the name "unclap."
+</p>
+
+<pre><div id="editor2" class="ace_editor ace_hidpi ace-chuck">
+</div></pre>
+live code
+<pre><div id="editor1" class="ace_editor ace_hidpi ace-chuck">  
+// name: unclap.ck
+// desc: configurable "clapping music" (Steve Reich)
+// author: Jesus Gollonet (original)
+//         Ge Wang (shreds and glottal pops)
+// date: Summer 2006
+
+// our patch
+SndBuf clapper1 => dac.left;
+SndBuf clapper2 => dac.right;
+
+// load built-in sounds
+"special:glot_ahh" => clapper1.read; 3.0 => clapper1.gain;
+"special:glot_ahh" => clapper2.read; 3.0 => clapper2.gain;
+
+// the full "clapping music" figure
+[.5, .5, 1, .5, 1, 1, .5, 1 ] @=> float seq[];
+
+// length of quarter note
+.4::second => dur quarter;
+// how many measures per shift
+3 => int shift_period;
+// how much to shift by (in quarter notes)
+.5 => float shift_factor;
+
+// one clapper
+fun void clap( SndBuf buffy, int max, float factor )
+{
+    1 => int shifts;
+
+    // infinite time loop
+    for( ; true; shifts++ )
+    {
+        // one measure
+        for( 0 => int count; count < seq.size(); count++ )
+        {
+            // set gain
+            seq[count] * 2 => buffy.gain;
+            // clap!
+            0 => buffy.pos;
+            // let time go by
+            if( !max || shifts < max || count != (seq.size() - 1) )
+                seq[count]::quarter => now;
+            else
+            {
+                <<< "shift!!!", "" >>>;
+                seq[count]*factor*quarter => now;
+                0 => shifts;
+            }
+        }
+    }
+}
+
+// spork one clapper, shift every shift_period measures
+spork ~ clap( clapper1, shift_period, shift_factor );
+// spork, no shift
+spork ~ clap( clapper2, 0, 0 );
+
+// infinite time loop
+while( true ) 1::day => now;
+</div></pre>
+
+<p>
+<input id="startButton" type="button" value="Start" /> 
+<input id="startButtonWithInput" type="button" value="ADC & Start" /> 
+<input id="stopButton" type="button" value="Stop" /><br/><br/>
+<input id="recordButton" type="button" value="Start Recording" /><br/><br/>
+</p>
+<p id="outputText">output is a stereo .wav file</p>
+<script>
+    var take = 1;
+    var preloaded = false;
+    var serverFilesToPreload = [
+//        {
+//            serverFilename: 'https://ccrma.stanford.edu/courses/220a/examples/webchuck/radio-play/wav/whale.wav',
+//            virtualFilename: 'whale.wav'
+//        }
+    ];
+    var adc = null;
+    const constraints = {'video': false, 'audio': {
+        'echoCancellation': false,
+        'autoGainControl': false,
+        'noiseSuppression': false,
+    }};
+    var connectAudioInput = function() {
+      navigator.mediaDevices.getUserMedia(constraints)
+        .then( function( stream ) {
+          adc = audioContext.createMediaStreamSource( stream );
+          adc.connect( theChuck );
+        });
+    }
+    var disconnectAudioInput = function() {
+      if (adc != null) adc.disconnect( theChuck );
+      adc = null;
+    }
+    async function prep(withInput) {
+        if (!preloaded) {
+          await preloadFilenames( serverFilesToPreload );
+        }
+        await startChuck();
+        await theChuckReady;
+        theChuck.removeLastCode();
+        if (!preloaded) {
+//          await theChuck.runFile("isoRhythm.ck");
+          preloaded = true;
+        }
+        if ((withInput) && (adc === null))  connectAudioInput();
+    }
+
+var editor1 = newChuckEditor("editor1");
+var editor2 = newChuckEditor("editor2");
+editor2.setOptions({
+  showLineNumbers: false
+  , showGutter: false
+});
+
+var prependCode = `//  none needed
+`;
+
+var startButton = document.getElementById( "startButton" );
+var startButtonWithInput = document.getElementById( "startButtonWithInput" );
+var stopButton = document.getElementById( "stopButton" );
+var recordButton = document.getElementById( "recordButton" );
+stopButton.disabled = true;
+startButton.style.height = '60px';
+startButton.style.width= '120px';
+startButtonWithInput.style.height = '60px';
+startButtonWithInput.style.width= '120px';
+stopButton.style.height = '60px';
+stopButton.style.width= '120px';
+
+startButton.addEventListener( "click", async function() {
+  await prep(false);
+  await theChuck.runCode(prependCode+editor1.getValue());
+  stopButton.disabled = false;
+  startButton.value = "Replace";
+  startButtonWithInput.disabled = true;
+  startButton.style.background='White';  
+  recordButton.value = "Start Recording";
+  recordButton.style.background='#f0f0f0';  
+  await new Promise(r => setTimeout(r, 100));
+});
+
+startButtonWithInput.addEventListener( "click", async function() {
+  await prep(true);
+  await theChuck.runCode(prependCode+editor1.getValue());
+  stopButton.disabled = false;
+  startButtonWithInput.value = "Replace";
+  startButton.disabled = true;
+  startButtonWithInput.style.background='White';  
+  recordButton.value = "Start Recording";
+  recordButton.style.background='#f0f0f0';  
+  await new Promise(r => setTimeout(r, 100));
+});
+
+stopButton.addEventListener( "click", async function() {
+  await theChuck.removeLastCode();
+  disconnectAudioInput();
+  stereoRecorder.stop();
+  if (recordButton.value == "Recording") {
+    createDownloadLink(take);
+    take++;
+  }
+});
+
+recordButton.addEventListener( "click", async function() {
+  recordFromChuck();
+  stereoRecorder.start();
+  recordButton.style.background='Coral';  
+  recordButton.value = "Recording";
+});
+
+// mouse interface
+var clickOn = true;
+theChuckReady.then( function() {
+  if( window.Event ) { 
+    document.captureEvents( Event.MOUSEMOVE );
+  }
+  document.onmousemove = function( e )  {
+      var x = (window.Event) ? e.pageX : event.clientX + (document.documentElement.scrollLeft ?     
+        document.documentElement.scrollLeft : document.body.scrollLeft);
+      var y = (window.Event) ? e.pageY : event.clientY + (document.documentElement.scrollTop ? 
+        document.documentElement.scrollTop : document.body.scrollTop);
+//      theChuck.setInt( "mouseX", x );
+//      theChuck.setInt( "mouseY", y );
+    }
+  document.onmousedown = function( e )  {
+        theChuck.broadcastEvent("playRiff");
+  }
+});
+</script>
