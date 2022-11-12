@@ -1,7 +1,7 @@
 # webchuck
 collection of webchuck .html files
 
-no need to clone if all you want is to try these out
+[no need to clone](https://www.w3.org/WAI/EO/wiki/Preview_files_on_GitHub) if all you want is to try these out
 
 * copy the link for any .hml file in this repo and paste it into [raw githack](https://raw.githack.com/)
 
