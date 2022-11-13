@@ -1,0 +1,161 @@
+<!-- 
+    based off of tutorials by Mike Mulshine et al
+    dependencies are in https://ccrma.stanford.edu/~cc/220a/webchuck220a/
+-->
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<!--- make responsive for mobile devices -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"> 
+<!--- Include the ACE editor and webchuck stuff -->
+  <link rel="stylesheet" href="https://ccrma.stanford.edu/~cc/220a/webchuck220a/css/editor.css">
+  <script type="text/javascript" src="https://ccrma.stanford.edu/~cc/220a/webchuck220a/js/ace.js" charset="utf-8"></script>
+  <script type="text/javascript" src="https://ccrma.stanford.edu/~cc/220a/webchuck220a/js/editor.js"></script>
+  <script type="text/javascript" src="https://ccrma.stanford.edu/~cc/220a/webchuck220a/js/defer.js"></script>
+  <script type="text/javascript" src="https://ccrma.stanford.edu/~cc/220a/webchuck220a/js/webchuck_host.js"></script>
+
+</head>
+
+<h2> Webchuck Demo</h2>
+<p>Pattern of 4 pitches cycling against 3 timbres. Click the mouse to start an accelerating pattern. The instruments are all FM and chosen from the STK <a href="https://ccrma.stanford.edu/software/stk/classstk_1_1FM.html">FM classes</a>.
+<br> Defines an IsoRhythm class, with a "play" method and arrays of pitches and FM instruments.
+</p>
+
+//////////////////////////////////////////////////// <br>
+suggestions (test these patches by replacing the choices in the code below) <br>   
+<pre><div id="editor2" class="ace_editor ace_hidpi ace-chuck">
+    FMVoices 
+    HevyMetl
+    PercFlut
+    Rhodey
+    TubeBell
+    Wurley
+    BeeThree
+</div></pre>
+//////////////////////////////////////////////////// <br>
+live code
+<pre><div id="editor1" class="ace_editor ace_hidpi ace-chuck">  
+// global int mouseX, mouseY; // mouse position is unused
+global Event playRiff;
+class IsoRhythm {
+// array to hold midi pitches (key numbers) 
+// these will be converted into the carrier frequencies
+  [60, 62, 64, 65] @=> int keyNum[];
+// how many pitches are in the array
+  keyNum.size() => int nPitches;
+  3 => int nInsts;
+  FM fm[nInsts];
+  new FMVoices @=> fm[0];
+  new PercFlut @=> fm[1];
+  new Wurley @=> fm[2];
+  Pan2 stereo[nInsts];
+  for (0 => int i; i < nInsts; i++) fm[i] => stereo[i] => dac;
+  100::ms => dur duration;
+  fun void play(dur howLong, float accel, dur minInterOnsetInterval) {
+// initial interOnsetInterval (inverse of tempo)
+    800::ms => dur interOnsetInterval;
+// index for which pitch is next
+    0 => int p;
+// index for which instrument is next                         
+    0 => int i;
+    now => time beg;
+    beg + howLong => time end;
+    while (now < end) {
+      Std.mtof(keyNum[p]+12.0) => fm[i].freq;
+      stereo[i].pan( (i%nInsts - 1) );
+      fm[i].noteOn(1.0);
+      duration => now;
+      fm[i].noteOff(1.0);
+// increment pitch and instrument
+      p++;
+      i++;
+// cycle pitches through full array
+      nPitches %=> p;
+// cycle instruments through full array
+      nInsts %=> i;
+// advance time by interOnsetInterval and calculate the next interval
+      interOnsetInterval => now;
+// accelerate
+      if (interOnsetInterval > minInterOnsetInterval) 
+        interOnsetInterval * accel => interOnsetInterval;
+      else
+// can't go faster than minInterOnsetInterval 
+        minInterOnsetInterval => interOnsetInterval;
+    }
+  }
+} // end of isoRhythm class definition
+IsoRhythm iso; // instantiate an IsoRhythm object
+fun void mousePlay() {
+  while (true) {
+    playRiff => now;
+// howLong, accel, minInterOnsetInterval
+    spork ~ iso.play(15::second, 0.9, 40::ms);
+  }
+}
+spork ~ mousePlay();
+1::week => now;
+</div></pre>
+
+<p>
+<input id="startButton" type="button" value="Start" /> 
+<input id="stopButton" type="button" value="Stop" /> <br/><br/>
+</p>
+
+<script>
+    async function prep() {
+        await startChuck();
+        await theChuckReady;
+        theChuck.removeLastCode();
+    }
+
+var editor1 = newChuckEditor("editor1");
+var editor2 = newChuckEditor("editor2");
+editor2.setOptions({
+  showLineNumbers: false
+  , showGutter: false
+});
+
+var prependCode = `//  none needed
+`;
+
+var startButton = document.getElementById( "startButton" );
+var stopButton = document.getElementById( "stopButton" );
+stopButton.disabled = true;
+startButton.style.height = '60px';
+startButton.style.width= '120px';
+stopButton.style.height = '60px';
+stopButton.style.width= '120px';
+
+startButton.addEventListener( "click", async function() {
+  await prep();
+  await theChuck.runCode(prependCode+editor1.getValue());
+  stopButton.disabled = false;
+  startButton.value = "Replace";
+  await new Promise(r => setTimeout(r, 100));
+});
+
+stopButton.addEventListener( "click", async function() {
+  await theChuck.removeLastCode();
+});
+
+// mouse interface
+var clickOn = true;
+theChuckReady.then( function() {
+  if( window.Event ) { 
+    document.captureEvents( Event.MOUSEMOVE );
+  }
+  document.onmousemove = function( e )  {
+      var x = (window.Event) ? e.pageX : event.clientX + (document.documentElement.scrollLeft ?     
+        document.documentElement.scrollLeft : document.body.scrollLeft);
+      var y = (window.Event) ? e.pageY : event.clientY + (document.documentElement.scrollTop ? 
+        document.documentElement.scrollTop : document.body.scrollTop);
+//      theChuck.setInt( "mouseX", x );
+//      theChuck.setInt( "mouseY", y );
+    }
+  document.onmousedown = function( e )  {
+        theChuck.broadcastEvent("playRiff");
+  }
+});
+
+</script>
+
