@@ -17,14 +17,15 @@
 </head>
 
 <h2> Webchuck Demo</h2>
-<p>Generate a sinusoidal oscillator tone.</p>
+<p>Test mic input.</p>
 <pre><div id="editor2" class="ace_editor ace_hidpi ace-chuck">
 </div></pre>
 live code
 <pre><div id="editor1" class="ace_editor ace_hidpi ace-chuck">  
-SinOsc sin => dac;
-sin.freq(440.0);
-sin.gain(0.1);
+adc => dac;
+dac.gain(0.1);
+5::second => now;
+dac.gain(0.0);
 1::week => now;
 </div></pre>
 
