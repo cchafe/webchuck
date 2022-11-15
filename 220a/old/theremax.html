@@ -1,0 +1,403 @@
+<!-- 
+    based off of tutorials by Mike Mulshine et al
+    dependencies are in https://ccrma.stanford.edu/~cc/220a/webchuck220aFinal/
+-->
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<!--- make responsive for mobile devices -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"> 
+<!--- Include the ACE editor and webchuck stuff -->
+  <link rel="stylesheet" href="https://ccrma.stanford.edu/~cc/220a/webchuck220aFinal/css/editor.css">
+  <script type="text/javascript" src="https://ccrma.stanford.edu/~cc/220a/webchuck220aFinal/js/ace.js" charset="utf-8"></script>
+  <script type="text/javascript" src="https://ccrma.stanford.edu/~cc/220a/webchuck220aFinal/js/editor.js"></script>
+  <script type="text/javascript" src="https://ccrma.stanford.edu/~cc/220a/webchuck220aFinal/js/defer.js"></script>
+  <script type="text/javascript" src="https://ccrma.stanford.edu/~cc/220a/webchuck220aFinal/js/webchuck_host_recorder.js"></script>
+	<!-- Styles -->
+	<link rel="stylesheet" href="https://netdna.bootstrapcdn.com/bootstrap/3.1.1/css/bootstrap.min.css">
+	<style>
+		body {
+			padding-top: 20px;
+			padding-bottom: 20px;
+		}
+
+		#sig-canvas {
+			border: 2px dotted #CCCCCC;
+			border-radius: 5px;
+			cursor: crosshair;
+		}
+
+		#sig-dataUrl {
+			width: 100%;
+		}
+	</style>
+</head>
+
+
+<h2> Webchuck Demo</h2>
+<pre><div id="editor2" class="ace_editor ace_hidpi ace-chuck">
+</div></pre>
+live code
+<pre><div id="editor1" class="ace_editor ace_hidpi ace-chuck">  
+global int mouseX, mouseY;
+global float cg;
+
+SinOsc c => dac;
+dac.gain(0.1);
+SinOsc m => blackhole;
+440 => float cf;
+550 => float mf => m.freq;
+200 => float index;
+1.0 => cg;
+fun void runFM() {
+  while( true ) {
+    cf + (index * m.last()) => c.freq;
+    cg => c.gain;
+    1::samp => now;
+  }
+}
+spork ~ runFM();
+fun void RespondToMouseMovement() {
+  while( true ) {
+    mouseX*0.05 => m.freq;
+    mouseY*0.5 => index;
+    10::ms => now;
+  }
+}
+spork ~ RespondToMouseMovement();
+1::week => now;
+
+</div></pre>
+	<div class="container">
+		<div class="row">
+			<div class="col-md-12">
+				<h1>Theremin-mouse-trackpad</h1>
+				<p>Theremin sounds from mouse & trackpad</p>
+			</div>
+		</div>
+		<div class="row">
+			<div class="col-md-12">
+		 		<canvas id="sig-canvas" width="620" height="160">
+		 			Get a better browser, bro.
+		 		</canvas>
+		 	</div>
+		</div>
+		<div class="row">
+			<div class="col-md-12">
+				<button class="btn btn-primary" id="sig-submitBtn">
+				  Submit Signature
+				</button>
+				<button class="btn btn-default" id="sig-clearBtn">
+				  Clear Signature
+			  </button>
+			</div>
+		</div>
+		<br/>
+		<div class="row">
+			<div class="col-md-12">
+				<textarea id="sig-dataUrl" class="form-control" rows="5">
+				  Data URL for your signature will go here!
+				</textarea>
+			</div>
+		</div>
+		<br/>
+		<div class="row">
+			<div class="col-md-12">
+				<img id="sig-image" src="" alt="Your signature will go here!"/>
+			</div>
+		</div>
+	</div>
+
+<p>
+<input id="startButton" type="button" value="Start" /> 
+<input id="startButtonWithInput" type="button" value="ADC & Start" /> 
+<input id="stopButton" type="button" value="Stop" /><br/><br/>
+<input id="recordButton" type="button" value="Start Recording" /><br/><br/>
+</p>
+<p id="outputText">output is a stereo .wav file</p>
+<script>
+		(function() {
+			
+			// Get a regular interval for drawing to the screen
+			window.requestAnimFrame = (function (callback) {
+				return window.requestAnimationFrame || 
+							window.webkitRequestAnimationFrame ||
+							window.mozRequestAnimationFrame ||
+							window.oRequestAnimationFrame ||
+							window.msRequestAnimaitonFrame ||
+							function (callback) {
+							 	window.setTimeout(callback, 1000/60);
+							};
+			})();
+
+			// Set up the canvas
+			var canvas = document.getElementById("sig-canvas");
+			var ctx = canvas.getContext("2d");
+			ctx.strokeStyle = "#222222";
+			ctx.lineWith = 2;
+
+			// Set up the UI
+			var sigText = document.getElementById("sig-dataUrl");
+			var sigImage = document.getElementById("sig-image");
+			var clearBtn = document.getElementById("sig-clearBtn");
+			var submitBtn = document.getElementById("sig-submitBtn");
+			clearBtn.addEventListener("click", function (e) {
+				clearCanvas();
+				sigText.innerHTML = "Data URL for your signature will go here!";
+				sigImage.setAttribute("src", "");
+			}, false);
+			submitBtn.addEventListener("click", function (e) {
+				var dataUrl = canvas.toDataURL();
+				sigText.innerHTML = dataUrl;
+				sigImage.setAttribute("src", dataUrl);
+			}, false);
+
+			// Set up mouse events for drawing
+			var drawing = false;
+			var mousePos = { x:0, y:0 };
+			var lastPos = mousePos;
+canvas.addEventListener("mousemove", function(e){
+        if (!e) e = window.event;
+        var x = e.offsetX==undefined?e.layerX:e.offsetX;
+        var y = e.offsetY==undefined?e.layerY:e.offsetY;
+        ctx.fillRect(x, y, 3, 3);
+    });
+
+canvas.addEventListener('wheel', zoom, { passive: false });
+
+    			canvas.addEventListener("mousedown", function (e) {
+				drawing = true;
+				lastPos = getMousePos(canvas, e);
+			}, false);
+			canvas.addEventListener("mouseup", function (e) {
+				drawing = false;
+			}, false);
+			canvas.addEventListener("mousemove", function (e) {
+				mousePos = getMousePos(canvas, e);
+			}, false);
+
+			// Set up touch events for mobile, etc
+			canvas.addEventListener("touchstart", function (e) {
+				mousePos = getTouchPos(canvas, e);
+				var touch = e.touches[0];
+				var mouseEvent = new MouseEvent("mousedown", {
+					clientX: touch.clientX,
+					clientY: touch.clientY
+				});
+				canvas.dispatchEvent(mouseEvent);
+			}, false);
+			canvas.addEventListener("touchend", function (e) {
+				var mouseEvent = new MouseEvent("mouseup", {});
+				canvas.dispatchEvent(mouseEvent);
+			}, false);
+			canvas.addEventListener("touchmove", function (e) {
+				var touch = e.touches[0];
+				var mouseEvent = new MouseEvent("mousemove", {
+					clientX: touch.clientX,
+					clientY: touch.clientY
+				});
+				canvas.dispatchEvent(mouseEvent);
+			}, false);
+
+			// Prevent scrolling when touching the canvas
+			document.body.addEventListener("touchstart", function (e) {
+				if (e.target == canvas) {
+					e.preventDefault();
+				}
+			}, false);
+			document.body.addEventListener("touchend", function (e) {
+				if (e.target == canvas) {
+					e.preventDefault();
+				}
+			}, false);
+			document.body.addEventListener("touchmove", function (e) {
+				if (e.target == canvas) {
+					e.preventDefault();
+				}
+			}, false);
+
+			// Get the position of the mouse relative to the canvas
+			function getMousePos(canvasDom, mouseEvent) {
+				var rect = canvasDom.getBoundingClientRect();
+				return {
+					x: mouseEvent.clientX - rect.left,
+					y: mouseEvent.clientY - rect.top
+				};
+			}
+
+			// Get the position of a touch relative to the canvas
+			function getTouchPos(canvasDom, touchEvent) {
+				var rect = canvasDom.getBoundingClientRect();
+				return {
+					x: touchEvent.touches[0].clientX - rect.left,
+					y: touchEvent.touches[0].clientY - rect.top
+				};
+			}
+
+			// Draw to the canvas
+			function renderCanvas() {
+				if (drawing) {
+					ctx.moveTo(lastPos.x, lastPos.y);
+					ctx.lineTo(mousePos.x, mousePos.y);
+					ctx.stroke();
+					lastPos = mousePos;
+				}
+			}
+
+			// Clear the canvas
+			function clearCanvas() {
+				canvas.width = canvas.width;
+			}
+
+			// Allow for animation
+			(function drawLoop () {
+				requestAnimFrame(drawLoop);
+				renderCanvas();
+			})();
+
+
+/////////////////////////////
+
+    var take = 1;
+    var preloaded = false;
+    var serverFilesToPreload = [
+//        {
+//            serverFilename: 'https://ccrma.stanford.edu/courses/220a/examples/webchuck/radio-play/wav/whale.wav',
+//            virtualFilename: 'whale.wav'
+//        }
+    ];
+    var adc = null;
+    const constraints = {'video': false, 'audio': {
+        'echoCancellation': false,
+        'autoGainControl': false,
+        'noiseSuppression': false,
+    }};
+    var connectAudioInput = function() {
+      navigator.mediaDevices.getUserMedia(constraints)
+        .then( function( stream ) {
+          adc = audioContext.createMediaStreamSource( stream );
+          adc.connect( theChuck );
+        });
+    }
+    var disconnectAudioInput = function() {
+      if (adc != null) adc.disconnect( theChuck );
+      adc = null;
+    }
+    async function prep(withInput) {
+        if (!preloaded) {
+          await preloadFilenames( serverFilesToPreload );
+        }
+        await startChuck();
+        await theChuckReady;
+        theChuck.removeLastCode();
+        if (!preloaded) {
+//          await theChuck.runFile("isoRhythm.ck");
+          preloaded = true;
+        }
+        if ((withInput) && (adc === null))  connectAudioInput();
+    }
+
+var editor1 = newChuckEditor("editor1");
+var editor2 = newChuckEditor("editor2");
+editor2.setOptions({
+  showLineNumbers: false
+  , showGutter: false
+});
+
+var prependCode = `//  none needed
+`;
+
+var startButton = document.getElementById( "startButton" );
+var startButtonWithInput = document.getElementById( "startButtonWithInput" );
+var stopButton = document.getElementById( "stopButton" );
+var recordButton = document.getElementById( "recordButton" );
+stopButton.disabled = true;
+startButton.style.height = '60px';
+startButton.style.width= '120px';
+startButtonWithInput.style.height = '60px';
+startButtonWithInput.style.width= '120px';
+stopButton.style.height = '60px';
+stopButton.style.width= '120px';
+
+startButton.addEventListener( "click", async function() {
+  await prep(false);
+  await theChuck.runCode(prependCode+editor1.getValue());
+  stopButton.disabled = false;
+  startButton.value = "Replace";
+  startButtonWithInput.disabled = true;
+  startButton.style.background='White';  
+  recordButton.value = "Start Recording";
+  recordButton.style.background='#f0f0f0';  
+  await new Promise(r => setTimeout(r, 100));
+});
+
+startButtonWithInput.addEventListener( "click", async function() {
+  await prep(true);
+  await theChuck.runCode(prependCode+editor1.getValue());
+  stopButton.disabled = false;
+  startButtonWithInput.value = "Replace";
+  startButton.disabled = true;
+  startButtonWithInput.style.background='White';  
+  recordButton.value = "Start Recording";
+  recordButton.style.background='#f0f0f0';  
+  await new Promise(r => setTimeout(r, 100));
+});
+
+stopButton.addEventListener( "click", async function() {
+  await theChuck.removeLastCode();
+  disconnectAudioInput();
+  stereoRecorder.stop();
+  if (recordButton.value == "Recording") {
+    createDownloadLink(take);
+    take++;
+  }
+});
+
+recordButton.addEventListener( "click", async function() {
+  recordFromChuck();
+  stereoRecorder.start();
+  recordButton.style.background='Coral';  
+  recordButton.value = "Recording";
+});
+
+// mouse interface
+
+var clickOn = true;
+theChuckReady.then( function() {
+  if( window.Event ) { 
+    document.captureEvents( Event.MOUSEMOVE );
+  }
+  document.onmousemove = function( e )  {
+      var x = (window.Event) ? e.pageX : event.clientX + (document.documentElement.scrollLeft ?     
+        document.documentElement.scrollLeft : document.body.scrollLeft);
+      var y = (window.Event) ? e.pageY : event.clientY + (document.documentElement.scrollTop ? 
+        document.documentElement.scrollTop : document.body.scrollTop);
+      theChuck.setInt( "mouseX", x );
+      theChuck.setInt( "mouseY", y );
+    }
+  document.onmousedown = function( e )  {
+        theChuck.broadcastEvent("playRiff");
+  }
+});
+
+  let mw = 1;
+  let tw = 1;
+
+function zoom(event) {
+  event.preventDefault();
+  if (Math.abs(event.deltaY) > 100.0) {
+    mw += event.deltaY * -0.01;
+    mw = Math.min(Math.max(.125, mw), 4);
+    console.log("mouse " + event.deltaY + " " + mw);
+      theChuck.setInt( "mouseX", mw );
+  } else {
+    tw += event.deltaY * -0.01;
+    tw = Math.min(Math.max(.125, tw), 4);
+    console.log("track " + event.deltaY + " " + tw);
+    theChuck.setInt( "mouseY", tw );
+  }
+}
+
+		})();
+
+</script>
